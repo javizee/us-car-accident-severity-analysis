@@ -18,7 +18,7 @@ This project analyzes U.S. traffic accidents using exploratory data analysis and
 
 ### Severity Distribution
 
-![Severity Distribution](img/severity-distribution.png)
+![Severity Distribution](img/severity_plot.png)
 
 ### Random Forest Variable Importance
 
