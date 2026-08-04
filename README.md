@@ -1,6 +1,12 @@
 # US Car Accident Severity Analysis
 
-A machine learning analysis of U.S. traffic accidents to identify the roadway and weather conditions most associated with severe crashes.
+## Key Finding
+
+Traffic signals and crossings were associated with lower accident severity, while junctions and higher wind speeds were among the strongest predictors of severe crashes. A Random Forest model trained on U.S. accident data showed that roadway characteristics were more important than weather conditions for predicting accident severity.
+
+---
+
+This project analyzes U.S. traffic accidents using exploratory data analysis and machine learning to identify the factors most associated with severe crashes.
 
 ## Key Findings
 
