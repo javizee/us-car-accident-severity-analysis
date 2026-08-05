@@ -1,0 +1,284 @@
+---
+title: "US Car Accident Severity Analysis"
+author: "Javier Zialcita"
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    code-summary: "Show code"
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+# Introduction
+
+Traffic accidents remain a major public safety issue in the United States. This project investigates whether accident severity can be predicted using weather, roadway, and environmental conditions present at the time of an accident.
+
+## Research Question
+
+Can accident severity be predicted using weather, roadway, and environmental conditions, and which factors are most strongly associated with severe crashes?
+
+```{r setup, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(skimr)
+library(corrplot)
+library(caret)
+library(pROC)
+library(randomForest)
+library(knitr)
+
+functions_path <- if (file.exists("R/accident_analysis_functions.R")) {
+  "R/accident_analysis_functions.R"
+} else {
+  "accident_analysis_functions.R"
+}
+
+source(functions_path)
+
+
+set.seed(42)
+
+accidents <- read_csv("data/accidents_sample.csv")
+
+```{r}
+glimpse(accidents)
+summary(accidents)
+skim(accidents)
+```
+
+# Exploratory Data Analysis
+
+## Distribution of Accident Severity
+
+**Question:** Is the target variable balanced?
+
+```{r}
+plot_severity_distribution(accidents)
+```
+
+Severity level 2 accounts for the majority of reported accidents. This indicates that the target variable is highly imbalanced, so precision, recall, F1 score, balanced accuracy, and AUC are more informative than accuracy alone.
+
+```{r}
+plot_top_states(accidents)
+```
+
+The state totals provide geographic context, but they should not be treated as direct measures of driving risk because population, traffic volume, road networks, and reporting practices differ between states.
+
+```{r}
+accidents <- prepare_accident_outcomes(accidents)
+
+table(accidents$Severe)
+prop.table(table(accidents$Severe))
+
+plot_binary_severity_distribution(accidents)
+```
+
+Non-severe accidents account for most observations, while severe accidents make up a smaller proportion.
+
+## Weather Variables
+
+```{r}
+plot_temperature_distribution(accidents)
+plot_temperature_by_severity(accidents)
+
+plot_humidity_distribution(accidents)
+plot_humidity_by_severity(accidents)
+
+plot_visibility_distribution(accidents)
+plot_visibility_by_severity(accidents)
+
+plot_wind_speed_distribution(accidents)
+plot_wind_speed_by_severity(accidents)
+
+plot_precipitation_distribution(accidents)
+plot_precipitation_by_severity(accidents)
+```
+
+Overall, the weather variables vary quite a bit, but none of them show a clear difference between severe and non-severe accidents in these plots. Wind speed, visibility, and precipitation have some extreme values that should be cleaned before building prediction models. This suggests that weather alone may not be enough to explain accident severity and will likely work better when combined with road, traffic, and other environmental factors.
+
+## Weather and Roadway Features
+
+```{r}
+plot_severity_by_weather_group(accidents)
+```
+The proportion of severe accidents is fairly similar across the different weather groups. Rain, cloudy conditions, and the "Other" category have slightly higher proportions of severe accidents, while dust has the lowest. However, the differences are relatively small, suggesting that weather type alone does not strongly affect accident severity. These results indicate that weather is likely more useful when combined with other factors such as road conditions, traffic, and location.
+
+```{r}
+plot_severity_by_traffic_signal(accidents)
+```
+
+
+```{r}
+plot_severity_by_junction(accidents)
+```
+
+```{r}
+plot_severity_by_crossing(accidents)
+```
+
+```{r}
+plot_severity_by_stop(accidents)
+```
+
+Traffic Signal: Locations with a traffic signal have a lower proportion of severe accidents than locations without one, suggesting traffic signals may help reduce accident severity.
+Junction: Accidents at junctions have a higher proportion of severe accidents than those away from junctions, indicating that intersections may be more likely to experience severe crashes.
+Crossing: Locations with a crossing have a lower proportion of severe accidents compared with locations without a crossing.
+Stop Sign: Locations with a stop sign also have a lower proportion of severe accidents, suggesting that traffic control devices may help reduce accident severity.
+
+## Correlation and Missing Values
+
+```{r}
+plot_numeric_correlation(accidents)
+```
+
+The correlation heatmap shows that most of the weather variables have weak to moderate relationships with one another, with no pair showing a very strong correlation. Temperature and humidity have a moderate negative correlation, meaning higher temperatures are generally associated with lower humidity. Temperature and visibility have a moderate positive correlation, suggesting visibility tends to improve as temperature increases. Humidity also has a moderate negative correlation with visibility, indicating that more humid conditions are often associated with lower visibility. Overall, the relatively low correlations suggest that these variables provide different information and are unlikely to cause serious multicollinearity in the prediction models.
+
+```{r}
+missing <- summarize_missingness(accidents)
+missing
+```
+
+```{r}
+# Replacing empty precipitation values with 0
+accidents <- impute_precipitation_zero(accidents)
+```
+
+# Data Preprocessing
+
+```{r}
+accidents <- drop_missing_model_rows(accidents)
+
+model_data <- select_model_features(accidents)
+
+model_data <- drop_constant_predictors(
+  model_data,
+  outcome = "Severe"
+)
+data_split <- split_accident_data(
+  model_data,
+  outcome = "Severe",
+  prop = 0.80,
+  seed = 42
+)
+
+train <- data_split$train
+test <- data_split$test
+
+dim(train)
+dim(test)
+```
+After removing observations with missing values in the modeling variables, only the selected predictor variables and the response variable (Severe) were retained. The data were then split into an 80% training set and a 20% testing set using a fixed random seed to ensure reproducibility. The training set was used to build the models, while the testing set was used to evaluate their performance.
+# Modeling
+
+## Logistic Regression
+
+```{r}
+factorized_data <- factorize_model_data(train, test)
+train <- factorized_data$train
+test <- factorized_data$test
+
+log_model <- fit_logistic_model(train)
+summary(log_model)
+```
+A logistic regression model was fit using the training data to predict accident severity. Categorical variables were converted to factors before fitting the model. The model summary showed that most predictors were statistically significant, including weather, roadway, and traffic features. Humidity and the hail weather category were not significant predictors. Overall, the reduction in residual deviance compared with the null deviance indicates that the predictors improve the model's ability to explain accident severity.
+```{r}
+log_prob <- predict(log_model, newdata = test, type = "response")
+
+log_pred <- factor(
+  ifelse(log_prob > 0.5, "1", "0"),
+  levels = c("0", "1")
+)
+
+log_evaluation <- evaluate_classifier(
+  truth = test$Severe,
+  predicted_class = log_pred,
+  predicted_probability = log_prob
+)
+
+log_evaluation$confusion_matrix
+log_evaluation$auc
+plot(log_evaluation$roc)
+```
+The logistic regression model correctly predicted 81.37% of the accidents. However, this number is misleading because most accidents in the dataset were already non-severe. The model correctly identified almost all non-severe accidents but missed almost all severe accidents. The ROC curve gave an AUC of 0.623, which means the model performed somewhat better than random guessing but was not very good at separating severe and non-severe accidents. Overall, the logistic regression model had limited success in predicting severe accidents.## Random Forest
+
+```{r}
+class_counts <- table(train$Severe)
+
+if (length(class_counts) < 2) {
+  stop("The training data must contain both severe and non-severe accidents.")
+}
+
+n_per_class <- min(class_counts)
+
+rf_train_sample <- balance_classes(
+  train,
+  outcome = "Severe",
+  n_per_class = n_per_class,
+  seed = 42
+)
+
+rf_test <- test
+names(rf_test) <- make.names(names(rf_test))
+
+rf_model <- fit_random_forest(
+  rf_train_sample,
+  outcome = "Severe",
+  ntree = 100,
+  seed = 42
+)
+```
+
+Before training the random forest model, the training data were balanced by selecting an equal number of severe and non-severe accidents. This helped prevent the model from favoring the majority class. A random forest model with 100 decision trees was then trained using the balanced dataset.
+
+```{r}
+rf_pred <- predict(rf_model, newdata = rf_test)
+
+rf_prob <- predict(
+  rf_model,
+  newdata = rf_test,
+  type = "prob"
+)[, "1"]
+
+rf_evaluation <- evaluate_classifier(
+  truth = test$Severe,
+  predicted_class = rf_pred,
+  predicted_probability = rf_prob
+)
+
+rf_evaluation$confusion_matrix
+rf_evaluation$auc
+plot(rf_evaluation$roc)
+```
+
+The random forest model achieved an accuracy of 56.96% on the test data. Although its overall accuracy was lower than the logistic regression model, it correctly identified about 70% of severe accidents, compared with almost none for logistic regression. The model also achieved an AUC of 0.665, which was higher than the logistic regression model's AUC of 0.623. Overall, the random forest model was better at identifying severe accidents, making it the stronger model for this project.
+
+```{r}
+varImpPlot(rf_model)
+```
+The variable importance plot shows that Crossing, Traffic Signal, Stop Sign, and Wind Speed were among the most important predictors of accident severity. Other important variables included Junction, Temperature, Humidity, and Weather Group. Variables such as Roundabout, Bump, and Traffic Calming had the smallest impact on the model. Overall, the results suggest that both roadway features and weather conditions contribute to predicting accident severity, with roadway features having the greatest influence.
+
+## Model Comparison
+
+```{r}
+comparison <- rbind(
+  evaluation_row("Logistic Regression", log_evaluation),
+  evaluation_row("Random Forest", rf_evaluation)
+)
+
+comparison[, -1] <- round(comparison[, -1], 4)
+
+kable(
+  comparison,
+  caption = "Comparison of Logistic Regression and Random Forest Models",
+  align = c("l", "r", "r", "r", "r", "r", "r")
+)
+```
+Table X compares the performance of the logistic regression and random forest models. The logistic regression model had a higher overall accuracy (81.37%), but it identified almost none of the severe accidents, with a recall of only 0.01%. In contrast, the random forest model correctly identified about 70% of severe accidents, although its overall accuracy was lower (56.96%). The random forest also had higher F1 score, balanced accuracy, and AUC, showing that it was better at distinguishing between severe and non-severe accidents. Because the goal of this project is to identify severe accidents, the random forest model was selected as the better-performing model.
+
+# Conclusion
+
+The model comparison should emphasize severe-accident recall, balanced accuracy, and AUC rather than overall accuracy because the response variable is highly imbalanced. Variable importance identifies features that were useful to the Random Forest, but it does not prove that those features directly cause severe accidents.
