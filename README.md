@@ -1,8 +1,8 @@
 # US Car Accident Severity Analysis
 
-## Key Finding
+Roadway characteristics had a greater influence on accident severity than weather conditions. A Random Forest model trained on U.S. accident data found that traffic signals, crossings, and junctions were among the most important predictors of severe crashes.
 
-Traffic signals and crossings were associated with lower accident severity, while junctions and higher wind speeds were among the strongest predictors of severe crashes. A Random Forest model trained on U.S. accident data showed that roadway characteristics were more important than weather conditions for predicting accident severity.
+This project analyzes U.S. traffic accidents using exploratory data analysis and machine learning to identify the factors most associated with severe crashes.
 
 ---
 
@@ -10,9 +10,14 @@ This project analyzes U.S. traffic accidents using exploratory data analysis and
 
 ## Key Findings
 
-- Roadway features such as crossings, traffic signals, and junctions were among the strongest predictors of accident severity.
-- Weather variables like wind speed and visibility contributed to prediction, but roadway characteristics had a greater overall impact.
-- A Random Forest model outperformed Logistic Regression, showing that nonlinear relationships improve accident severity prediction.
+- **Roadway features such as crossings, traffic signals, and junctions were among the strongest predictors of accident severity.**
+  - **This means that** the design and layout of roads may have a larger influence on crash severity than many environmental conditions, making roadway improvements a potential way to reduce severe accidents.
+
+- **Weather variables like wind speed and visibility contributed to prediction, but roadway characteristics had a greater overall impact.**
+  - **This means that** while drivers should still be cautious in poor weather, investing in safer road infrastructure may have a greater long-term impact on reducing severe crashes.
+
+- **A Random Forest model outperformed Logistic Regression, showing that nonlinear relationships improve accident severity prediction.**
+  - **This means that** accident severity is influenced by multiple interacting factors, so more flexible machine learning models can better capture these complex patterns.
 
 ## Preview
 
